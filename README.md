@@ -222,7 +222,7 @@ curl -s http://127.0.0.1:3000/metrics
 
 ### 5.7 Step 7: Hot Reload Configuration (End-to-End Example)
 
-The gateway supports dynamic zero-downtime hot reloading of service configurations without interrupting active API traffic. Administrative reloads are protected via **Localhost Socket Isolation** (`127.0.0.1` / `::1` origin validation with `X-Forwarded-For` proxy protection).
+The gateway supports dynamic zero-downtime hot reloading of service configurations without interrupting active API traffic. Administrative reloads are protected via **Localhost Socket Isolation** (strict `127.0.0.1` / `::1` socket origin validation with explicit rejection of `X-Forwarded-For` header spoofing).
 
 #### Option 1: Automated Reload via CLI (Recommended)
 Trigger a hot reload using the `-reload` CLI flag:

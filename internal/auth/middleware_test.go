@@ -363,5 +363,3 @@ func TestAuthMiddlewareMaxConcurrencyExceeded(t *testing.T) {
 
 	close(blockChan)
 }
-
-

@@ -11,6 +11,7 @@ import (
 
 type Registry struct {
 	mu          sync.RWMutex
+	reloadMu    sync.Mutex
 	services    map[string]Service
 	servicesDir string
 	logger      *slog.Logger
@@ -24,6 +25,9 @@ func NewRegistry(logger *slog.Logger) *Registry {
 }
 
 func (r *Registry) LoadServices(dir string) error {
+	r.reloadMu.Lock()
+	defer r.reloadMu.Unlock()
+
 	r.servicesDir = dir
 
 	entries, err := os.ReadDir(dir)
@@ -78,28 +82,6 @@ func (r *Registry) LoadServices(dir string) error {
 			}
 		}
 	}
-
-	return nil
-}
-
-func (r *Registry) loadService(name, configPath string) error {
-	// #nosec G304 -- configPath constructed from admin-controlled services_dir config
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return fmt.Errorf("read config: %w", err)
-	}
-
-	svc, err := CreateService(name, json.RawMessage(data))
-	if err != nil {
-		return err
-	}
-
-	r.mu.Lock()
-	if existing, exists := r.services[name]; exists {
-		_ = existing.Close() // #nosec G104 -- best-effort cleanup on replace
-	}
-	r.services[name] = svc
-	r.mu.Unlock()
 
 	return nil
 }

@@ -4207,7 +4207,7 @@ bucket_policy_only = true
 [s3-offsite]
 type = s3
 provider = AWS
-access_key_id = AKIAXXXXXXXXXXXXXXXX
+access_key_id = EX_AWS_ACCESS_KEY_ID_EXAMPLE
 secret_access_key = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 region = us-east-1
 ```
@@ -4230,7 +4230,7 @@ bucket_policy_only = true
 [s3-offsite]
 type = s3
 provider = AWS
-access_key_id = AKIAXXXXXXXXXXXXXXXX
+access_key_id = EX_AWS_ACCESS_KEY_ID_EXAMPLE
 secret_access_key = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 region = us-east-1
 ```

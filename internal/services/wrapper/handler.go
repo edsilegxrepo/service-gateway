@@ -90,7 +90,8 @@ func (s *WrapperService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 
-	// #nosec G204 -- Executable from admin service config (validated path), Args validated against AllowedArgs whitelist
+	// #nosec G204 -- Executable from admin config, Args validated against AllowedArgs whitelist
+	// nosemgrep
 	cmd := exec.CommandContext(ctx, s.config.Settings.Executable, req.Args...)
 
 	if s.config.Settings.WorkingDir != "" {

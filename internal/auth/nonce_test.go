@@ -153,4 +153,3 @@ func TestNonceStoreClose(t *testing.T) {
 	store := NewNonceStore(1 * time.Minute)
 	store.Close()
 }
-

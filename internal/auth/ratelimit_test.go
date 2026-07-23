@@ -89,4 +89,3 @@ func TestRateLimiterEvictOldest(t *testing.T) {
 		t.Errorf("expected map size to stay at %d after overflow, got %d", maxBuckets, len(rl.tokens))
 	}
 }
-

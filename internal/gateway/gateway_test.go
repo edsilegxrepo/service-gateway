@@ -557,31 +557,43 @@ func TestReloadEndpointForbiddenForForwardedIP(t *testing.T) {
 
 	handler := gw.Handler()
 
-	req := httptest.NewRequest("POST", "/_admin/reload", nil)
-	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("X-Forwarded-For", "203.0.113.195")
-	rr := httptest.NewRecorder()
+	// Test 1: External IP in XFF
+	req1 := httptest.NewRequest("POST", "/_admin/reload", nil)
+	req1.RemoteAddr = "127.0.0.1:12345"
+	req1.Header.Set("X-Forwarded-For", "203.0.113.195")
+	rr1 := httptest.NewRecorder()
 
-	handler.ServeHTTP(rr, req)
+	handler.ServeHTTP(rr1, req1)
 
-	if rr.Code != http.StatusForbidden {
-		t.Errorf("status = %d, want 403 Forbidden for forwarded external IP", rr.Code)
+	if rr1.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403 Forbidden for forwarded external IP", rr1.Code)
+	}
+
+	// Test 2: Spoofed loopback IP in XFF
+	req2 := httptest.NewRequest("POST", "/_admin/reload", nil)
+	req2.RemoteAddr = "127.0.0.1:12345"
+	req2.Header.Set("X-Forwarded-For", "127.0.0.1")
+	rr2 := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403 Forbidden for spoofed loopback XFF", rr2.Code)
 	}
 }
-
 
 type mockService struct {
 	name string
 }
 
-func (s *mockService) Name() string                                     { return s.name }
-func (s *mockService) Type() string                                     { return "mock-test" }
+func (s *mockService) Name() string { return s.name }
+func (s *mockService) Type() string { return "mock-test" }
 func (s *mockService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("mock response"))
+	_, _ = w.Write([]byte("mock response"))
 }
 func (s *mockService) HealthCheck(ctx context.Context) error { return nil }
-func (s *mockService) Close() error { return nil }
+func (s *mockService) Close() error                          { return nil }
 
 func TestAPIExecuteService(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -672,4 +684,3 @@ func TestMetricsEndpoint(t *testing.T) {
 		t.Errorf("requests_total = %v, want >= 3", metrics["requests_total"])
 	}
 }
-

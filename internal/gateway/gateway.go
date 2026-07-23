@@ -100,13 +100,8 @@ func (g *Gateway) handleReload(w http.ResponseWriter, r *http.Request) {
 }
 
 func isLocalhostRequest(r *http.Request) bool {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		for _, part := range strings.Split(xff, ",") {
-			ip := strings.TrimSpace(part)
-			if ip != "127.0.0.1" && ip != "::1" && ip != "localhost" {
-				return false
-			}
-		}
+	if r.Header.Get("X-Forwarded-For") != "" {
+		return false
 	}
 
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -115,7 +110,6 @@ func isLocalhostRequest(r *http.Request) bool {
 	}
 	return host == "127.0.0.1" || host == "::1"
 }
-
 
 func (g *Gateway) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

@@ -90,7 +90,7 @@ func triggerReload(configPath string) error {
 	if err != nil {
 		return fmt.Errorf("HTTP POST request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned status: %s", resp.Status)
@@ -98,7 +98,6 @@ func triggerReload(configPath string) error {
 
 	return nil
 }
-
 
 func run(configPath string) error {
 	cfg, err := config.Load(configPath)

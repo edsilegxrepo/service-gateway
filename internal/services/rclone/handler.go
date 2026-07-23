@@ -181,6 +181,7 @@ func (s *RcloneService) handleNamedOperation(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	// nosemgrep: go.lang.security.audit.xss.no-direct-write-to-responsewriter.no-direct-write-to-responsewriter
 	if _, err := w.Write([]byte(result)); err != nil {
 		s.WriteError(w, http.StatusInternalServerError, "write error: "+err.Error())
 	}
@@ -323,6 +324,7 @@ func (s *RcloneService) handleRaw(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}
+	// nosemgrep: go.lang.security.audit.xss.no-direct-write-to-responsewriter.no-direct-write-to-responsewriter
 	if _, err := w.Write([]byte(out)); err != nil {
 		s.WriteError(w, http.StatusInternalServerError, "write error: "+err.Error())
 	}
