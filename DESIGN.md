@@ -266,7 +266,20 @@ service-gateway/
 
 ### Service Config (`services/mongodb-production/config.json`)
 
-Each service folder contains its own `config.json` with connection details, queries, and limits:
+Each service folder contains its own `config.json` with connection details, queries, and limits.
+
+**Environment Variable Expansion**: Service configs support `${VAR}` syntax for environment variable substitution at load time. This allows secrets and environment-specific values to be injected without storing them in the config file:
+
+```json
+{
+  "connection": {
+    "encrypted_uri": "${MONGODB_URI_ENCRYPTED}",
+    "database": "${MONGODB_DATABASE:-default_db}"
+  }
+}
+```
+
+Example config:
 
 ```json
 {
@@ -7325,7 +7338,7 @@ kill -HUP $(pidof gateway)
 3. **Metrics** — Prometheus endpoint for monitoring
    - Request count, latency histograms
    - Per-service, per-key breakdown
-   - `/metrics` endpoint (no auth, localhost only)
+   - `/metrics` endpoint (Prometheus compatible, localhost only)
 
 4. **Audit Log** — Persistent request audit trail
    - JSON log file or database
