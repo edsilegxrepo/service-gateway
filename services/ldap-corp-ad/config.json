@@ -1,0 +1,52 @@
+{
+  "type": "ldap",
+  "description": "Corporate Active Directory lookups",
+  "version": "1.0",
+  "settings": {
+    "server": "ldaps://dc01.corp.example.com:636",
+    "encrypted_bind_dn": "ENC[your-encrypted-bind-dn]",
+    "encrypted_bind_password": "ENC[your-encrypted-password]",
+    "tls": {
+      "start_tls": false,
+      "ca_cert": "",
+      "skip_verify": false
+    },
+    "connection": {
+      "timeout_seconds": 30,
+      "pool_size": 5
+    },
+    "base_dn": "DC=corp,DC=example,DC=com",
+    "operations": {
+      "lookup-user": {
+        "description": "Get user by sAMAccountName",
+        "search_base": "OU=Users,DC=corp,DC=example,DC=com",
+        "filter": "(&(objectClass=user)(sAMAccountName={{username}}))",
+        "attributes": ["cn", "mail", "department", "title", "memberOf"],
+        "params": {
+          "username": {
+            "type": "string",
+            "required": true,
+            "pattern": "^[a-zA-Z0-9._-]+$"
+          }
+        },
+        "size_limit": 1
+      },
+      "lookup-group-members": {
+        "description": "Get members of a group",
+        "search_base": "OU=Groups,DC=corp,DC=example,DC=com",
+        "filter": "(&(objectClass=group)(cn={{group_name}}))",
+        "attributes": ["cn", "member"],
+        "params": {
+          "group_name": {
+            "type": "string",
+            "required": true
+          }
+        },
+        "size_limit": 1
+      }
+    },
+    "raw_search": {
+      "enabled": false
+    }
+  }
+}

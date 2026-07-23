@@ -1,0 +1,45 @@
+{
+  "type": "sql",
+  "description": "Example PostgreSQL service",
+  "version": "1.0",
+  "settings": {
+    "encrypted_dsn": "postgres://user:pass@localhost:5432/mydb?sslmode=disable",
+    "timeout_seconds": 30,
+    "max_open_conns": 10,
+    "max_idle_conns": 5,
+    "conn_max_lifetime": "30m",
+    "queries": {
+      "get-customer": {
+        "description": "Get customer by ID",
+        "sql": "SELECT id, name, email, created_at FROM customers WHERE id = {{customer_id}}",
+        "single_row": true,
+        "params": {
+          "customer_id": {
+            "type": "integer",
+            "required": true
+          }
+        }
+      },
+      "list-orders": {
+        "description": "List orders for a customer",
+        "sql": "SELECT id, product, quantity, total FROM orders WHERE customer_id = {{customer_id}} ORDER BY created_at DESC LIMIT {{limit}}",
+        "params": {
+          "customer_id": {
+            "type": "integer",
+            "required": true
+          },
+          "limit": {
+            "type": "integer",
+            "required": false,
+            "default": 50
+          }
+        }
+      }
+    },
+    "adhoc_access": {
+      "enabled": false,
+      "allowed_patterns": [],
+      "max_rows": 1000
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "type": "mongodb",
+  "description": "Example MongoDB service",
+  "version": "1.0",
+  "settings": {
+    "encrypted_uri": "mongodb://localhost:27017",
+    "database": "example",
+    "timeout_seconds": 30,
+    "queries": {
+      "find-users": {
+        "description": "Find users by status",
+        "collection": "users",
+        "operation": "find",
+        "filter": {"status": "{{status}}"},
+        "projection": {"_id": 1, "name": 1, "email": 1},
+        "limit": 100,
+        "params": {
+          "status": {
+            "type": "string",
+            "required": true,
+            "enum": ["active", "inactive", "pending"]
+          }
+        }
+      },
+      "get-user": {
+        "description": "Get single user by ID",
+        "collection": "users",
+        "operation": "findOne",
+        "filter": {"_id": "{{user_id}}"},
+        "params": {
+          "user_id": {
+            "type": "string",
+            "required": true
+          }
+        }
+      }
+    },
+    "adhoc_access": {
+      "enabled": false,
+      "allowed_collections": [],
+      "allowed_operations": [],
+      "max_limit": 1000
+    }
+  }
+}

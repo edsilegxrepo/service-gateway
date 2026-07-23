@@ -1,0 +1,13 @@
+{
+  "type": "pdf-extractor",
+  "description": "Extract invoice numbers from PDF files",
+  "version": "1.0",
+  "settings": {
+    "workspace_path": "D:\\data\\invoices\\incoming",
+    "file_pattern": "*.pdf",
+    "search_pattern": "Invoice Number:",
+    "mutool_bin": "",
+    "timeout_seconds": 30,
+    "workers": 4
+  }
+}
