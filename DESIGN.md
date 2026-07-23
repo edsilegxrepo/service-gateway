@@ -268,16 +268,47 @@ service-gateway/
 
 Each service folder contains its own `config.json` with connection details, queries, and limits.
 
-**Environment Variable Expansion**: Service configs support `${VAR}` syntax for environment variable substitution at load time. This allows secrets and environment-specific values to be injected without storing them in the config file:
+**Environment Variable Expansion**: Service configs support `${VAR}` and `$VAR` syntax for environment variable substitution at load time (via Go's `os.ExpandEnv`). This allows environment-specific values to be injected without hardcoding them:
+
+| Syntax | Behavior | Example |
+|--------|----------|---------|
+| `$VAR` | Replace with value of VAR | `$HOME` → `/home/user` |
+| `${VAR}` | Replace with value of VAR | `${HOME}` → `/home/user` |
+| `${VAR:-default}` | **Not supported** — use plain `${VAR}` | N/A |
+
+**Usage examples:**
 
 ```json
 {
+  "type": "mongodb",
   "connection": {
-    "encrypted_uri": "${MONGODB_URI_ENCRYPTED}",
-    "database": "${MONGODB_DATABASE:-default_db}"
+    "encrypted_uri": "${MONGO_URI_ENC}",
+    "database": "${MONGO_DB}"
   }
 }
 ```
+
+```json
+{
+  "type": "sql",
+  "connection": {
+    "encrypted_dsn": "${SQL_DSN_ENC}",
+    "driver": "postgres"
+  }
+}
+```
+
+```json
+{
+  "type": "binary-wrapper",
+  "settings": {
+    "executable": "${TOOL_PATH}/bin/processor",
+    "working_dir": "${DATA_DIR}"
+  }
+}
+```
+
+**Note**: Set environment variables before starting the gateway. Missing variables result in empty strings, not errors.
 
 Example config:
 
