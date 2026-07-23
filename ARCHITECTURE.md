@@ -104,7 +104,7 @@ graph TD
     MUX -->|Admin Request| ADMIN
     ADMIN --> REG
 
-    MUX -->|API Request /api/v1/{service}/...| REG
+    MUX -->|"API Request /api/v1/{service}/..."| REG
     REG --> LDAP
     REG --> MONGO
     REG --> MQ
