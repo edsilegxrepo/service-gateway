@@ -76,7 +76,7 @@ func (r *Registry) LoadServices(dir string) error {
 
 	for name, oldSvc := range oldServices {
 		if newSvc, kept := newServices[name]; !kept || newSvc != oldSvc {
-			_ = oldSvc.Close()
+			_ = oldSvc.Close() // #nosec G104 -- best-effort cleanup on reload
 			if !kept {
 				r.logger.Info("unloaded removed service", "name", name)
 			}
