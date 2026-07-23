@@ -45,14 +45,67 @@ func NewWrapperService(name string, rawConfig json.RawMessage) (services.Service
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
-	if !filepath.IsAbs(cfg.Settings.Executable) {
-		return nil, fmt.Errorf("executable path must be absolute: %s", cfg.Settings.Executable)
+	if err := validateExecutablePath(cfg.Settings.Executable); err != nil {
+		return nil, err
+	}
+
+	if cfg.Settings.WorkingDir != "" {
+		if err := validateDirectoryPath(cfg.Settings.WorkingDir); err != nil {
+			return nil, fmt.Errorf("working_dir: %w", err)
+		}
+	}
+
+	if err := validateEnvVars(cfg.Settings.Env); err != nil {
+		return nil, err
 	}
 
 	return &WrapperService{
 		BaseService: services.NewBaseService(name, "binary-wrapper"),
 		config:      cfg,
 	}, nil
+}
+
+func validateExecutablePath(path string) error {
+	if path == "" {
+		return fmt.Errorf("executable path is required")
+	}
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("executable path must be absolute: %s", path)
+	}
+	if containsShellMeta(path) {
+		return fmt.Errorf("executable path contains shell metacharacters: %s", path)
+	}
+	cleaned := filepath.Clean(path)
+	if cleaned != path && cleaned+"/" != path {
+		return fmt.Errorf("executable path must be canonical (no .. or //): %s", path)
+	}
+	return nil
+}
+
+func validateDirectoryPath(path string) error {
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("path must be absolute: %s", path)
+	}
+	if containsShellMeta(path) {
+		return fmt.Errorf("path contains shell metacharacters: %s", path)
+	}
+	cleaned := filepath.Clean(path)
+	if cleaned != path && cleaned+"/" != path {
+		return fmt.Errorf("path must be canonical (no .. or //): %s", path)
+	}
+	return nil
+}
+
+func validateEnvVars(env map[string]string) error {
+	for key, val := range env {
+		if strings.ContainsAny(key, "=\x00") {
+			return fmt.Errorf("invalid env var name: %s", key)
+		}
+		if strings.Contains(val, "\x00") {
+			return fmt.Errorf("env var %s contains null byte", key)
+		}
+	}
+	return nil
 }
 
 func (s *WrapperService) ServeHTTP(w http.ResponseWriter, r *http.Request) {

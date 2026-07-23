@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -48,6 +49,16 @@ func NewPDFExtractorService(name string, rawConfig json.RawMessage) (services.Se
 		return nil, fmt.Errorf("workspace_path is required")
 	}
 
+	if err := validatePath(cfg.Settings.WorkspacePath); err != nil {
+		return nil, fmt.Errorf("workspace_path: %w", err)
+	}
+
+	if cfg.Settings.MutoolBin != "" {
+		if err := validatePath(cfg.Settings.MutoolBin); err != nil {
+			return nil, fmt.Errorf("mutool_bin: %w", err)
+		}
+	}
+
 	if cfg.Settings.FilePattern == "" {
 		cfg.Settings.FilePattern = "*.pdf"
 	}
@@ -56,6 +67,20 @@ func NewPDFExtractorService(name string, rawConfig json.RawMessage) (services.Se
 		BaseService: services.NewBaseService(name, "pdf-extractor"),
 		config:      cfg,
 	}, nil
+}
+
+func validatePath(path string) error {
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("path must be absolute: %s", path)
+	}
+	if strings.ContainsAny(path, "\x00") {
+		return fmt.Errorf("path contains null byte")
+	}
+	cleaned := filepath.Clean(path)
+	if cleaned != path && cleaned+"/" != path {
+		return fmt.Errorf("path must be canonical (no .. or //): %s", path)
+	}
+	return nil
 }
 
 func (s *PDFExtractorService) ServeHTTP(w http.ResponseWriter, r *http.Request) {

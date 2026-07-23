@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -79,6 +80,12 @@ func NewRcloneService(name string, rawConfig json.RawMessage) (services.Service,
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
+	if cfg.Settings.ConfigFile != "" {
+		if err := validateFilePath(cfg.Settings.ConfigFile); err != nil {
+			return nil, fmt.Errorf("config_file: %w", err)
+		}
+	}
+
 	librclone.Initialize()
 
 	if cfg.Settings.EncryptedConfigPass != "" {
@@ -137,6 +144,11 @@ func (s *RcloneService) handleNamedOperation(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := validateParams(params, op.Params); err != nil {
+		s.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := validatePathParams(params); err != nil {
 		s.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -358,6 +370,44 @@ func validateParams(params map[string]any, defs map[string]Param) error {
 		if def.Required && !exists {
 			return fmt.Errorf("missing required parameter: %s", name)
 		}
+	}
+	return nil
+}
+
+func validateFilePath(path string) error {
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("path must be absolute: %s", path)
+	}
+	if strings.ContainsAny(path, "\x00") {
+		return fmt.Errorf("path contains null byte")
+	}
+	cleaned := filepath.Clean(path)
+	if cleaned != path && cleaned+"/" != path {
+		return fmt.Errorf("path must be canonical (no .. or //): %s", path)
+	}
+	return nil
+}
+
+func validatePathParams(params map[string]any) error {
+	pathKeys := []string{"path", "src_path", "dst_path", "src_folder", "dst_folder"}
+	for _, key := range pathKeys {
+		if val, ok := params[key]; ok {
+			if str, isStr := val.(string); isStr {
+				if err := validateRemotePath(str); err != nil {
+					return fmt.Errorf("parameter %s: %w", key, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func validateRemotePath(path string) error {
+	if strings.Contains(path, "\x00") {
+		return fmt.Errorf("path contains null byte")
+	}
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("path traversal not allowed: %s", path)
 	}
 	return nil
 }
