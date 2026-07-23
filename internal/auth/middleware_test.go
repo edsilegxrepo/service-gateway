@@ -284,3 +284,88 @@ func TestGetKeyNameEmpty(t *testing.T) {
 		t.Errorf("KeyName = %s, want empty", name)
 	}
 }
+
+func TestAuthMiddlewarePerKeyRateLimit(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	cfg := config.AuthConfig{
+		Keys: map[string]config.APIKey{
+			"key1": {
+				EncryptedSecret: "secret1",
+				RateLimitRPM:    60,
+			},
+		},
+	}
+
+	m := NewMiddleware(cfg, logger)
+
+	handler := m.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req1 := httptest.NewRequest("GET", "/", nil)
+	req1.Header.Set("Authorization", "Bearer secret1")
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+	if rr1.Code != http.StatusOK {
+		t.Errorf("request 1 status = %d, want 200", rr1.Code)
+	}
+
+	req2 := httptest.NewRequest("GET", "/", nil)
+	req2.Header.Set("Authorization", "Bearer secret1")
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+	if rr2.Code != http.StatusOK {
+		t.Errorf("request 2 status = %d, want 200", rr2.Code)
+	}
+}
+
+func TestAuthMiddlewareMaxConcurrencyExceeded(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	cfg := config.AuthConfig{
+		Keys: map[string]config.APIKey{
+			"key1": {
+				EncryptedSecret: "secret1",
+				MaxConcurrent:   1,
+			},
+		},
+	}
+
+	m := NewMiddleware(cfg, logger)
+
+	blockChan := make(chan struct{})
+	handler := m.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-blockChan
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	go func() {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "Bearer secret1")
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+	}()
+
+	// Wait briefly for first request to acquire concurrency slot
+	for i := 0; i < 100; i++ {
+		m.keyConcurrency["key1"].mu.Lock()
+		cur := m.keyConcurrency["key1"].current
+		m.keyConcurrency["key1"].mu.Unlock()
+		if cur == 1 {
+			break
+		}
+	}
+
+	req2 := httptest.NewRequest("GET", "/", nil)
+	req2.Header.Set("Authorization", "Bearer secret1")
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusTooManyRequests {
+		t.Errorf("expected 429 for concurrent overflow, got %d", rr2.Code)
+	}
+
+	close(blockChan)
+}
+

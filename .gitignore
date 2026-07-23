@@ -1,29 +1,93 @@
 # Binaries
+*.bin
 *.exe
 *.exe~
 *.dll
+*.lib
 *.so
 *.dylib
-gateway
+/bin/
+/class/
 
-# Test coverage
-coverage.out
-coverage.html
+# Linting
+.ruff_cache
+golangci-lint*
+gosec*
 
-# IDE
-.idea/
-.vscode/
+# OS generated files
+.DS_Store
+.DS_Store?
+ehthumbs.db
+Icon?
+Thumbs.db
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
+# Languages
+vendor/
+__pycache__/
 
-# Secrets (never commit)
+# Secrets and environment
+.env
 *.key
+*.env
+*.crt
 *.pem
-!*_test.pem
+*.p12
+*.jks
+*.gpg
+*.secret
+secrets/
+key/
+keys/
 
-# Local config overrides
-config.local.json
+# Transient
+*.out
+*.tmp
+*.test
+*.log
+temp/
+tmp/
+out/
+log/
+logs/
+
+# Data
+*.db
+data/
+db/
+testdata/
+testfiles/
+testsamples/
+
+# Backup files (sequences)
+*.bk??
+
+# Build files
+.editorconfig
+.windsurf
+.antigravity
+.antigravity-cli
+.gemini
+.claude
+AGENTS.md
+RULES.md
+GEMINI.md
+CLAUDE.md
+JULES.md
+SKILLS.md
+walkthrough*.md
+implementation_plan*.md
+code_review_report*.md
+tasks.md
+
+# Code Review tooling
+repomix-output.xml
+repomix-output.md
+repomix-instruction.md
+.repomixignore
+repomix.config.json
+
+
+# --- Vendor / Local Assets ---
+**/mermaid.min.js
