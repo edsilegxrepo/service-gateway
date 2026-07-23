@@ -148,3 +148,9 @@ func TestNonceValidateMiddlewareInvalidNonce(t *testing.T) {
 		t.Errorf("status = %d, want 401", rr.Code)
 	}
 }
+
+func TestNonceStoreClose(t *testing.T) {
+	store := NewNonceStore(1 * time.Minute)
+	store.Close()
+}
+

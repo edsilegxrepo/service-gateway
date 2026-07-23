@@ -5,8 +5,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/edsilegxrepo/service-gateway/internal/auth"
@@ -15,14 +17,18 @@ import (
 )
 
 type Gateway struct {
-	registry    *services.Registry
-	auth        *auth.Middleware
-	nonceStore  *auth.NonceStore
-	logger      *slog.Logger
-	startTime   time.Time
-	version     string
-	servicesDir string
-	reloadFn    func() error
+	registry      *services.Registry
+	auth          *auth.Middleware
+	nonceStore    *auth.NonceStore
+	logger        *slog.Logger
+	startTime     time.Time
+	version       string
+	servicesDir   string
+	reloadFn      func() error
+	requestsTotal atomic.Uint64
+	requests2xx   atomic.Uint64
+	requests4xx   atomic.Uint64
+	requests5xx   atomic.Uint64
 }
 
 type Config struct {
@@ -54,6 +60,7 @@ func (g *Gateway) Handler() http.Handler {
 
 	mux.HandleFunc("GET /health", g.handleHealth)
 	mux.HandleFunc("GET /ready", g.handleReady)
+	mux.HandleFunc("GET /metrics", g.handleMetrics)
 	mux.HandleFunc("POST /_admin/reload", g.handleReload)
 
 	mux.Handle("GET /api/v1/auth/nonce", g.auth.Authenticate(http.HandlerFunc(g.nonceStore.HandleGetNonce)))
@@ -69,6 +76,11 @@ func (g *Gateway) Handler() http.Handler {
 }
 
 func (g *Gateway) handleReload(w http.ResponseWriter, r *http.Request) {
+	if !isLocalhostRequest(r) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
 	if g.reloadFn == nil {
 		http.Error(w, "Reload not configured", http.StatusNotImplemented)
 		return
@@ -86,6 +98,24 @@ func (g *Gateway) handleReload(w http.ResponseWriter, r *http.Request) {
 		g.logger.Error("failed to encode reload response", "error", err)
 	}
 }
+
+func isLocalhostRequest(r *http.Request) bool {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		for _, part := range strings.Split(xff, ",") {
+			ip := strings.TrimSpace(part)
+			if ip != "127.0.0.1" && ip != "::1" && ip != "localhost" {
+				return false
+			}
+		}
+	}
+
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	return host == "127.0.0.1" || host == "::1"
+}
+
 
 func (g *Gateway) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -195,9 +225,27 @@ func (g *Gateway) requestIDMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func (g *Gateway) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]any{
+		"status":         "ok",
+		"version":        g.version,
+		"uptime":         time.Since(g.startTime).Truncate(time.Second).String(),
+		"requests_total": g.requestsTotal.Load(),
+		"requests_2xx":   g.requests2xx.Load(),
+		"requests_4xx":   g.requests4xx.Load(),
+		"requests_5xx":   g.requests5xx.Load(),
+	}); err != nil {
+		g.logger.Error("failed to encode metrics response", "error", err)
+	}
+}
+
 func (g *Gateway) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		g.requestsTotal.Add(1)
+
 		if r.URL.Path == "/health" {
+			g.requests2xx.Add(1)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -206,6 +254,14 @@ func (g *Gateway) loggingMiddleware(next http.Handler) http.Handler {
 		wrapped := &responseWriter{ResponseWriter: w, status: 200}
 
 		next.ServeHTTP(wrapped, r)
+
+		if wrapped.status >= 200 && wrapped.status < 300 {
+			g.requests2xx.Add(1)
+		} else if wrapped.status >= 400 && wrapped.status < 500 {
+			g.requests4xx.Add(1)
+		} else if wrapped.status >= 500 {
+			g.requests5xx.Add(1)
+		}
 
 		log := logging.FromContext(r.Context(), g.logger)
 		log.Info("request",

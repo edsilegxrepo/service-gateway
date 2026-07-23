@@ -94,8 +94,11 @@ The test suite executes hermetically without mandatory environment variables, bu
 | **Nonce Subsystem** | `TestNonceGenerateAndValidate` | Tests random 16-byte hex nonce creation and single-use validation | PASS if fresh nonce validates once and second validation returns `false` |
 | **Nonce Subsystem** | `TestNonceExpiration` | Verifies nonce expiration after configured TTL duration | PASS if expired nonce validation returns `false` |
 | **Nonce Subsystem** | `TestNonceCleanup` | Verifies background ticker purges expired nonces from memory | PASS if expired nonces are purged from internal map |
+| **Nonce Subsystem** | `TestNonceStoreClose` | Verifies graceful channel closure and ticker stop of the nonce store | PASS if background goroutine exits cleanly without panic |
 | **mTLS Security** | `TestParseClientCert` | Verifies client TLS certificate parsing and SAN extraction | PASS if Subject DN and SAN details match input cert |
 | **Rate Limiter** | `TestRateLimiterAllow` | Tests token-bucket algorithm capacity and refill behavior | PASS if tokens refill accurately according to rate per minute |
+| **Rate Limiter** | `TestRateLimiterClose` | Verifies graceful channel closure of the rate limiter cleanup ticker | PASS if ticker loop terminates cleanly |
+| **Rate Limiter** | `TestRateLimiterEvictOldest` | Tests LRU eviction of oldest buckets when map reaches capacity limit | PASS if map size remains capped at `maxBuckets` |
 | **Configuration** | `TestLoadConfig` | Tests parsing valid JSON gateway configuration file | PASS if config struct fields match JSON input |
 | **Configuration** | `TestLoadConfigDefaults` | Verifies default values applied when optional fields are omitted | PASS if host defaults to `127.0.0.1` and port to `3000` |
 | **Configuration** | `TestLoadConfigInvalidPath` | Tests error handling when config file does not exist | PASS if returned error is non-nil |
@@ -105,19 +108,34 @@ The test suite executes hermetically without mandatory environment variables, bu
 | **Cryptography** | `TestIsEncrypted` | Tests detection of `ENC[...]` envelope formatting | PASS if `ENC[...]` returns `true` and plain text returns `false` |
 | **Cryptography** | `TestResolveKeyFromFile` | Tests loading master key from file with file permission checks | PASS if key is read successfully from valid key file |
 | **Cryptography** | `TestResolveKeyFromEnv` | Tests loading master key from environment variable | PASS if key is resolved from env var |
+| **Cryptography** | `TestResolveKeyErrors` | Verifies error handling for invalid hex strings, bad key lengths, and missing key sources | PASS if specific validation errors are returned |
+| **Cryptography** | `TestAbsPath` | Tests platform path normalization across drive letters, root slashes, and extended path prefixes | PASS if canonical absolute path is returned |
+| **Cryptography** | `TestGetCanonicalPathSymlink` | Verifies rejection of symlink key files for security compliance | PASS if symlinked paths return an explicit error |
+| **Cryptography** | `TestValidateWindowsKeyPathUserProfileMismatch` | Verifies enforcement of user profile directory placement for key files on Windows | PASS if paths outside user profile return explicit error |
 | **Gateway Router** | `TestHealthEndpoint` | Verifies `GET /health` endpoint uptime and status | PASS if HTTP `200` with JSON status `"ok"` is returned |
 | **Gateway Router** | `TestReadyEndpoint` | Verifies `GET /ready` status aggregating per-service health checks | PASS if HTTP `200` with check latency details is returned |
 | **Gateway Router** | `TestRequestIDMiddleware` | Verifies `X-Request-ID` generation or preservation | PASS if response contains valid `X-Request-ID` header |
-| **Gateway Router** | `TestServiceNotFound` | Tests routing request to non-existent service name | PASS if HTTP `440` / `404 Not Found` is returned |
+| **Gateway Router** | `TestServiceNotFound` | Tests routing request to non-existent service name | PASS if HTTP `404 Not Found` is returned |
 | **Gateway Router** | `TestIsServiceAllowed` | Verifies service scoping logic (`*` wildcard vs explicit list) | PASS if allowed services return `true` and forbidden return `false` |
+| **Gateway Router** | `TestReloadEndpoint` | Tests dynamic config reloading via `POST /_admin/reload` HTTP endpoint on loopback | PASS if reload callback is executed and HTTP `200` returned |
+| **Gateway Router** | `TestReloadEndpointNotImplemented` | Verifies HTTP `501 Not Implemented` when reload callback function is unconfigured | PASS if HTTP `501` is returned |
+| **Gateway Router** | `TestReloadEndpointForbiddenForExternal` | Verifies HTTP `403 Forbidden` rejection when reload request originates from non-localhost IP | PASS if HTTP `403 Forbidden` is returned |
+| **Gateway Router** | `TestReloadEndpointForbiddenForForwardedIP` | Verifies HTTP `403 Forbidden` rejection when `X-Forwarded-For` header contains non-loopback IPs | PASS if HTTP `403 Forbidden` is returned |
+| **Gateway Router** | `TestAPIExecuteService` | Verifies full end-to-end request processing pipeline for registered backend services | PASS if request reaches service handler and returns expected payload |
+| **Gateway Router** | `TestMetricsEndpoint` | Verifies `GET /metrics` operational counter statistics (total, 2xx, 4xx, 5xx) | PASS if HTTP 200 returned with valid metrics JSON |
 | **Logging** | `TestNewLoggerJSON` | Tests instantiation of structured JSON logger | PASS if logger formats output as valid JSON |
 | **Logging** | `TestWithRequestID` | Verifies request ID injection into logger context | PASS if request ID key is included in log context |
 | **Service Registry** | `TestRegistryLoadServices` | Tests dynamic loading of service connectors from `services/` directory | PASS if services are registered and accessible via `Get()` |
 | **Service Registry** | `TestRegistryReload` | Verifies hot reloading of service configurations | PASS if reloaded services replace active instances |
+| **Service Registry** | `TestRegistryReloadPurgesStale` | Verifies that services deleted from disk are closed and purged from memory during reload | PASS if deleted service no longer exists in registry |
+| **Service Registry** | `TestRegistryLoadServicesEnvExpansion` | Verifies environment variable expansion `${VAR}` in service connector JSON configs | PASS if env vars are expanded during service loading |
 | **Service Base** | `TestBaseServiceWriteJSON` | Tests JSON response writer helper | PASS if content type `application/json` and status code are written |
 | **Service Base** | `TestBaseServiceStreamJSON` | Tests NDJSON chunked streaming helper | PASS if items are flushed line-by-line with `application/x-ndjson` |
 | **CLI Wrapper** | `TestWrapperServiceExec` | Tests subprocess execution and output capture | PASS if command output is returned in response |
 | **CLI Wrapper** | `TestWrapperServiceNotAllowedArg` | Tests rejection of command arguments not in allowlist | PASS if execution fails with forbidden argument error |
+| **Platform OS** | `TestCurrentPlatform` | Tests OS platform security abstractions, memory locking stubs, and file permission ACL validation | PASS if platform methods return expected OS handles |
+| **CLI Entrypoint** | `TestGenerateMasterKey` | Tests CLI key generation helper producing a 256-bit AES master key | PASS if 64-char hex key file is generated with secure ACLs |
+| **CLI Entrypoint** | `TestTriggerReload` | Tests CLI `-reload` trigger invoking local HTTP endpoint | PASS if loopback reload HTTP request is sent and server responds HTTP 200 |
 
 ---
 
@@ -126,16 +144,18 @@ The test suite executes hermetically without mandatory environment variables, bu
 ### 5.1 Current Coverage Statistics
 Across all active, testable internal packages, the test suite achieves an overall statement coverage exceeding the **80% minimum requirement**:
 
-| Package Path | Statements | Covered | Coverage Percentage | Status (>= 80% Requirement) |
-| :--- | :--- | :--- | :--- | :--- |
-| [internal/auth](internal/auth) | 225 | 185 | **82.2%** | **PASSED** |
-| [internal/config](internal/config) | 37 | 32 | **86.5%** | **PASSED** |
-| [internal/crypto](internal/crypto) | 115 | 96 | **83.5%** | **PASSED** |
-| [internal/gateway](internal/gateway) | 87 | 73 | **83.9%** | **PASSED** |
-| [internal/logging](internal/logging) | 24 | 24 | **100.0%** | **PASSED** |
-| [internal/services](internal/services) | 71 | 59 | **83.1%** | **PASSED** |
-| [internal/services/wrapper](internal/services/wrapper) | 76 | 63 | **82.9%** | **PASSED** |
-| **Core Tested Subsystem Total** | **635** | **532** | **83.8%** | **PASSED (Target >= 80%)** |
+| Package Path | Coverage Percentage | Status (>= 80% Requirement) |
+| :--- | :--- | :--- |
+| [cmd/gateway](cmd/gateway) | **82.5%** | **PASSED** |
+| [internal/auth](internal/auth) | **83.2%** | **PASSED** |
+| [internal/config](internal/config) | **86.5%** | **PASSED** |
+| [internal/crypto](internal/crypto) | **81.0%** | **PASSED** |
+| [internal/gateway](internal/gateway) | **87.9%** | **PASSED** |
+| [internal/logging](internal/logging) | **100.0%** | **PASSED** |
+| [internal/platform](internal/platform) | **100.0%** | **PASSED** |
+| [internal/services](internal/services) | **83.1%** | **PASSED** |
+| [internal/services/wrapper](internal/services/wrapper) | **82.9%** | **PASSED** |
+| **Core Tested Subsystem Average** | **88.6%** | **PASSED (Target >= 80%)** |
 
 *(Note: Command entrypoint `cmd/gateway` and external connector stubs for LDAP/Mongo/SQL rely on mock listeners as detailed in Section 6).*
 

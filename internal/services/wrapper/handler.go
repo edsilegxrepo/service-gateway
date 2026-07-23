@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -96,8 +97,8 @@ func (s *WrapperService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cmd.Dir = s.config.Settings.WorkingDir
 	}
 
-	for k, v := range s.config.Settings.Env {
-		cmd.Env = append(cmd.Env, k+"="+v)
+	if len(s.config.Settings.Env) > 0 {
+		cmd.Env = append(os.Environ(), formatEnv(s.config.Settings.Env)...)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -176,4 +177,12 @@ func (s *WrapperService) HealthCheck(ctx context.Context) error {
 
 func (s *WrapperService) Close() error {
 	return nil
+}
+
+func formatEnv(env map[string]string) []string {
+	res := make([]string, 0, len(env))
+	for k, v := range env {
+		res = append(res, k+"="+v)
+	}
+	return res
 }

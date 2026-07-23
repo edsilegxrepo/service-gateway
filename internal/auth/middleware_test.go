@@ -334,8 +334,10 @@ func TestAuthMiddlewareMaxConcurrencyExceeded(t *testing.T) {
 
 	m := NewMiddleware(cfg, logger)
 
+	inHandler := make(chan struct{})
 	blockChan := make(chan struct{})
 	handler := m.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		inHandler <- struct{}{}
 		<-blockChan
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -347,15 +349,8 @@ func TestAuthMiddlewareMaxConcurrencyExceeded(t *testing.T) {
 		handler.ServeHTTP(rr, req)
 	}()
 
-	// Wait briefly for first request to acquire concurrency slot
-	for i := 0; i < 100; i++ {
-		m.keyConcurrency["key1"].mu.Lock()
-		cur := m.keyConcurrency["key1"].current
-		m.keyConcurrency["key1"].mu.Unlock()
-		if cur == 1 {
-			break
-		}
-	}
+	// Wait for the first request to enter the handler (which means it acquired the slot)
+	<-inHandler
 
 	req2 := httptest.NewRequest("GET", "/", nil)
 	req2.Header.Set("Authorization", "Bearer secret1")
@@ -368,4 +363,5 @@ func TestAuthMiddlewareMaxConcurrencyExceeded(t *testing.T) {
 
 	close(blockChan)
 }
+
 

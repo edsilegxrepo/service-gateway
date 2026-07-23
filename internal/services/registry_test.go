@@ -105,3 +105,76 @@ func (s *testService) Type() string                                     { return
 func (s *testService) ServeHTTP(w http.ResponseWriter, r *http.Request) {}
 func (s *testService) HealthCheck(ctx context.Context) error            { return nil }
 func (s *testService) Close() error                                     { return nil }
+
+func TestRegistryReloadPurgesStale(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	tmpDir := t.TempDir()
+	svcDir := filepath.Join(tmpDir, "stale-svc")
+	if err := os.MkdirAll(svcDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	RegisterType("stale-registry", func(name string, cfg json.RawMessage) (Service, error) {
+		return &testService{name: name}, nil
+	})
+
+	if err := os.WriteFile(filepath.Join(svcDir, "config.json"), []byte(`{"type": "stale-registry"}`), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	registry := NewRegistry(logger)
+	if err := registry.LoadServices(tmpDir); err != nil {
+		t.Fatalf("LoadServices failed: %v", err)
+	}
+
+	if _, exists := registry.Get("stale-svc"); !exists {
+		t.Fatal("expected stale-svc to exist initially")
+	}
+
+	if err := os.RemoveAll(svcDir); err != nil {
+		t.Fatalf("RemoveAll failed: %v", err)
+	}
+
+	if err := registry.Reload(); err != nil {
+		t.Fatalf("Reload failed: %v", err)
+	}
+
+	if _, exists := registry.Get("stale-svc"); exists {
+		t.Error("expected stale-svc to be purged after deletion and reload")
+	}
+}
+
+func TestRegistryLoadServicesEnvExpansion(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	tmpDir := t.TempDir()
+	svcDir := filepath.Join(tmpDir, "env-svc")
+	if err := os.MkdirAll(svcDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	t.Setenv("TEST_SVC_TYPE", "env-registry")
+
+	var parsedType string
+	RegisterType("env-registry", func(name string, cfg json.RawMessage) (Service, error) {
+		var m map[string]string
+		_ = json.Unmarshal(cfg, &m)
+		parsedType = m["type"]
+		return &testService{name: name}, nil
+	})
+
+	configJSON := `{"type": "${TEST_SVC_TYPE}"}`
+	if err := os.WriteFile(filepath.Join(svcDir, "config.json"), []byte(configJSON), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	registry := NewRegistry(logger)
+	if err := registry.LoadServices(tmpDir); err != nil {
+		t.Fatalf("LoadServices failed: %v", err)
+	}
+
+	if parsedType != "env-registry" {
+		t.Errorf("parsedType = %s, want env-registry", parsedType)
+	}
+}

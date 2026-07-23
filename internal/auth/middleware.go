@@ -97,6 +97,17 @@ func NewMiddleware(cfg config.AuthConfig, logger *slog.Logger) *Middleware {
 	return m
 }
 
+func (m *Middleware) Close() {
+	if m.rateLimiter != nil {
+		m.rateLimiter.Close()
+	}
+	for _, limiter := range m.keyRateLimiters {
+		if limiter != nil {
+			limiter.Close()
+		}
+	}
+}
+
 func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log := logging.FromContext(r.Context(), m.logger)

@@ -457,3 +457,219 @@ func (s *failingService) HealthCheck(ctx context.Context) error {
 	return fmt.Errorf("service unhealthy")
 }
 func (s *failingService) Close() error { return nil }
+
+func TestReloadEndpoint(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	registry := services.NewRegistry(logger)
+
+	reloadCalled := false
+	reloadFn := func() error {
+		reloadCalled = true
+		return nil
+	}
+
+	gw := New(Config{
+		Registry: registry,
+		Logger:   logger,
+		ReloadFn: reloadFn,
+	})
+
+	handler := gw.Handler()
+
+	req := httptest.NewRequest("POST", "/_admin/reload", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rr.Code)
+	}
+
+	if !reloadCalled {
+		t.Error("expected reload function to be called")
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+	if resp["status"] != "reloaded" {
+		t.Errorf("status = %s, want reloaded", resp["status"])
+	}
+}
+
+func TestReloadEndpointNotImplemented(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	registry := services.NewRegistry(logger)
+
+	gw := New(Config{
+		Registry: registry,
+		Logger:   logger,
+		ReloadFn: nil,
+	})
+
+	handler := gw.Handler()
+
+	req := httptest.NewRequest("POST", "/_admin/reload", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotImplemented {
+		t.Errorf("status = %d, want 501", rr.Code)
+	}
+}
+
+func TestReloadEndpointForbiddenForExternal(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	registry := services.NewRegistry(logger)
+
+	gw := New(Config{
+		Registry: registry,
+		Logger:   logger,
+		ReloadFn: func() error { return nil },
+	})
+
+	handler := gw.Handler()
+
+	req := httptest.NewRequest("POST", "/_admin/reload", nil)
+	req.RemoteAddr = "192.168.1.100:12345"
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403 Forbidden for external IP", rr.Code)
+	}
+}
+
+func TestReloadEndpointForbiddenForForwardedIP(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	registry := services.NewRegistry(logger)
+
+	gw := New(Config{
+		Registry: registry,
+		Logger:   logger,
+		ReloadFn: func() error { return nil },
+	})
+
+	handler := gw.Handler()
+
+	req := httptest.NewRequest("POST", "/_admin/reload", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Forwarded-For", "203.0.113.195")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403 Forbidden for forwarded external IP", rr.Code)
+	}
+}
+
+
+type mockService struct {
+	name string
+}
+
+func (s *mockService) Name() string                                     { return s.name }
+func (s *mockService) Type() string                                     { return "mock-test" }
+func (s *mockService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("mock response"))
+}
+func (s *mockService) HealthCheck(ctx context.Context) error { return nil }
+func (s *mockService) Close() error { return nil }
+
+func TestAPIExecuteService(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	registry := services.NewRegistry(logger)
+
+	services.RegisterType("mock-test", func(name string, cfg json.RawMessage) (services.Service, error) {
+		return &mockService{name: name}, nil
+	})
+
+	tmpDir := t.TempDir()
+	svcDir := filepath.Join(tmpDir, "mock-svc")
+	if err := os.MkdirAll(svcDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(svcDir, "config.json"), []byte(`{"type": "mock-test"}`), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+	if err := registry.LoadServices(tmpDir); err != nil {
+		t.Fatalf("LoadServices failed: %v", err)
+	}
+
+	cfg := config.AuthConfig{
+		Keys: map[string]config.APIKey{
+			"test-key": {EncryptedSecret: "test-secret", Services: []string{"*"}},
+		},
+		NonceTTL: 5 * time.Minute,
+	}
+
+	gw := New(Config{
+		Registry:   registry,
+		Auth:       auth.NewMiddleware(cfg, logger),
+		NonceStore: auth.NewNonceStore(cfg.NonceTTL),
+		Logger:     logger,
+		StartTime:  time.Now(),
+		Version:    "test",
+	})
+
+	handler := gw.Handler()
+	nonce := getNonce(t, handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/mock-svc/query", nil)
+	req.Header.Set("Authorization", "Bearer test-secret")
+	req.Header.Set("X-Nonce", nonce)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rr.Code)
+	}
+
+	if rr.Body.String() != "mock response" {
+		t.Errorf("body = %s, want 'mock response'", rr.Body.String())
+	}
+}
+
+func TestMetricsEndpoint(t *testing.T) {
+	gw := newTestGateway()
+	handler := gw.Handler()
+
+	req1 := httptest.NewRequest("GET", "/health", nil)
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+
+	req2 := httptest.NewRequest("GET", "/api/v1/nonexistent/path", nil)
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	reqM := httptest.NewRequest("GET", "/metrics", nil)
+	rrM := httptest.NewRecorder()
+	handler.ServeHTTP(rrM, reqM)
+
+	if rrM.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rrM.Code)
+	}
+
+	var metrics map[string]any
+	if err := json.Unmarshal(rrM.Body.Bytes(), &metrics); err != nil {
+		t.Fatalf("Unmarshal metrics failed: %v", err)
+	}
+
+	if metrics["status"] != "ok" {
+		t.Errorf("status = %v, want ok", metrics["status"])
+	}
+
+	total, ok := metrics["requests_total"].(float64)
+	if !ok || total < 3 {
+		t.Errorf("requests_total = %v, want >= 3", metrics["requests_total"])
+	}
+}
+

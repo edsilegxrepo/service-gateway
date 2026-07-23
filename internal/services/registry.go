@@ -35,6 +35,7 @@ func (r *Registry) LoadServices(dir string) error {
 		return fmt.Errorf("read services dir: %w", err)
 	}
 
+	newServices := make(map[string]Service)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -43,12 +44,39 @@ func (r *Registry) LoadServices(dir string) error {
 		name := entry.Name()
 		configPath := filepath.Join(dir, name, "config.json")
 
-		if err := r.loadService(name, configPath); err != nil {
+		// #nosec G304 -- configPath constructed from admin-controlled services_dir config
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			r.logger.Error("failed to read service config", "name", name, "error", err)
+			continue
+		}
+
+		expandedData := os.ExpandEnv(string(data))
+		svc, err := CreateService(name, json.RawMessage(expandedData))
+		if err != nil {
 			r.logger.Error("failed to load service", "name", name, "error", err)
 			continue
 		}
 
+		newServices[name] = svc
 		r.logger.Info("loaded service", "name", name)
+	}
+
+	r.mu.Lock()
+	oldServices := r.services
+	r.services = make(map[string]Service, len(newServices))
+	for name, svc := range newServices {
+		r.services[name] = svc
+	}
+	r.mu.Unlock()
+
+	for name, oldSvc := range oldServices {
+		if newSvc, kept := newServices[name]; !kept || newSvc != oldSvc {
+			_ = oldSvc.Close()
+			if !kept {
+				r.logger.Info("unloaded removed service", "name", name)
+			}
+		}
 	}
 
 	return nil

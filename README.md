@@ -71,6 +71,7 @@ The `service-gateway` binary accepts the following command-line flags:
 | `-config` | `string` | `"config.json"` | Path to the gateway JSON configuration file. |
 | `-version` | `bool` | `false` | Display binary version and build timestamp, then exit. |
 | `-key-gen` | `string` | `""` | Generate a new 256-bit AES master key (64 hex characters), save it securely to the specified file path with restricted permissions, and exit. |
+| `-reload` | `bool` | `false` | Signal the running gateway process to reload its configuration and exit. |
 
 ---
 
@@ -202,21 +203,63 @@ curl -s http://127.0.0.1:3000/ready
 }
 ```
 
-### 5.7 Step 7: Hot Reload Configuration
-Reload services dynamically without interrupting open traffic:
+Check operational performance metrics:
 ```bash
-curl -s -X POST \
-  -H "Authorization: Bearer WhatABeautifulSecret1234567890123456" \
-  -H "X-Nonce: 4b2c1d9e8f7a6543210fe987654321ab" \
-  http://127.0.0.1:3000/_admin/reload
+curl -s http://127.0.0.1:3000/metrics
 ```
 **Output Sample:**
+```json
+{
+  "status": "ok",
+  "version": "dev",
+  "uptime": "5m12s",
+  "requests_total": 42,
+  "requests_2xx": 40,
+  "requests_4xx": 2,
+  "requests_5xx": 0
+}
+```
+
+### 5.7 Step 7: Hot Reload Configuration (End-to-End Example)
+
+The gateway supports dynamic zero-downtime hot reloading of service configurations without interrupting active API traffic. Administrative reloads are protected via **Localhost Socket Isolation** (`127.0.0.1` / `::1` origin validation with `X-Forwarded-For` proxy protection).
+
+#### Option 1: Automated Reload via CLI (Recommended)
+Trigger a hot reload using the `-reload` CLI flag:
+
+```bash
+./service-gateway -config config.json -reload
+```
+**Output Sample:**
+```text
+Configuration reload triggered successfully.
+```
+
+#### Option 2: Direct HTTP POST Request (Localhost Only)
+Issue an administrative reload directly via HTTP over the loopback interface:
+
+```bash
+curl -s -X POST http://127.0.0.1:3000/_admin/reload
+```
+
+**Output Sample (HTTP 200 OK):**
 ```json
 {
   "status": "reloaded"
 }
 ```
-*(Alternatively, send a `SIGHUP` signal to the process on Unix: `kill -HUP <pid>`)*
+
+**Output Sample (HTTP 403 Forbidden - Non-Localhost Origin):**
+```text
+Forbidden
+```
+
+#### Option 3: OS Signal (Unix-Only)
+Send a `SIGHUP` signal directly to the running gateway process:
+```bash
+kill -HUP <pid>
+```
+
 
 ---
 

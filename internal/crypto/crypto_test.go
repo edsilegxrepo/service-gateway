@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -457,3 +458,92 @@ func TestGenerateKeyUniqueness(t *testing.T) {
 		keys[key] = true
 	}
 }
+
+func TestAbsPath(t *testing.T) {
+	_, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd failed: %v", err)
+	}
+
+	got, err := absPath("\\\\?\\C:\\foo")
+	if err != nil || got != "\\\\?\\C:\\foo" {
+		t.Errorf("absPath prefix failed: %s, %v", got, err)
+	}
+
+	got, err = absPath("C:\\foo")
+	if err != nil || got != "C:\\foo" {
+		t.Errorf("absPath drive letter failed: %s, %v", got, err)
+	}
+
+	got, err = absPath("\\foo")
+	if err != nil {
+		t.Errorf("absPath root slash failed: %v", err)
+	}
+
+	got, err = absPath("foo")
+	if err != nil || !strings.HasSuffix(got, "foo") {
+		t.Errorf("absPath relative failed: %s, %v", got, err)
+	}
+}
+
+func TestGetCanonicalPathSymlink(t *testing.T) {
+	tmpDir := t.TempDir()
+	targetFile := filepath.Join(tmpDir, "target")
+	if err := os.WriteFile(targetFile, []byte("data"), 0o600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	symlinkFile := filepath.Join(tmpDir, "link")
+	err := os.Symlink(targetFile, symlinkFile)
+	if err != nil {
+		t.Skip("skipping symlink test: symlink creation failed or not supported")
+	}
+
+	_, err = getCanonicalPath(symlinkFile)
+	if err == nil {
+		t.Error("expected error for symlink path")
+	}
+}
+
+func TestResolveKeyErrors(t *testing.T) {
+	badHex := strings.Repeat("g", 64)
+	_, err := ResolveKey(context.Background(), badHex, "", "")
+	if err == nil || !strings.Contains(err.Error(), "invalid key") {
+		t.Errorf("expected invalid hex key error, got: %v", err)
+	}
+
+	badLen := "too-short"
+	_, err = ResolveKey(context.Background(), badLen, "", "")
+	if err == nil || !strings.Contains(err.Error(), "invalid key") {
+		t.Errorf("expected invalid length error, got: %v", err)
+	}
+
+	_, err = ResolveKey(context.Background(), "", "", "")
+	if err == nil || err != ErrNoKeySource {
+		t.Errorf("expected ErrNoKeySource, got: %v", err)
+	}
+}
+
+func TestValidateWindowsKeyPathUserProfileMismatch(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows-specific test")
+	}
+
+	tmpDir := t.TempDir()
+	keyFile := filepath.Join(tmpDir, "test-userprofile-mismatch.key")
+	if err := os.WriteFile(keyFile, []byte("test"), 0o600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	oldProfile := os.Getenv("USERPROFILE")
+	defer os.Setenv("USERPROFILE", oldProfile)
+	os.Setenv("USERPROFILE", "C:\\Users\\NonexistentUserProfileFolder")
+
+	err := validateFilePermissions(keyFile)
+	if err == nil {
+		t.Error("expected error for key path outside user profile directory")
+	}
+}
+
+
+

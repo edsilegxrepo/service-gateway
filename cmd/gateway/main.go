@@ -38,6 +38,7 @@ func main() {
 	configPath := flag.String("config", "config.json", "Path to config file")
 	showVersion := flag.Bool("version", false, "Show version and exit")
 	keyGen := flag.String("key-gen", "", "Generate a new master key and save to path")
+	reload := flag.Bool("reload", false, "Signal running gateway to reload configuration")
 	flag.Parse()
 
 	if *showVersion {
@@ -54,11 +55,50 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *reload {
+		if err := triggerReload(*configPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error triggering reload: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Configuration reload triggered successfully.")
+		os.Exit(0)
+	}
+
 	if err := run(*configPath); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
+
+func triggerReload(configPath string) error {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		cfg = &config.Config{}
+	}
+
+	targetHost := cfg.Server.Host
+	if targetHost == "" || targetHost == "0.0.0.0" {
+		targetHost = "127.0.0.1"
+	}
+	if cfg.Server.Port == 0 {
+		cfg.Server.Port = 3000
+	}
+
+	url := fmt.Sprintf("http://%s:%d/_admin/reload", targetHost, cfg.Server.Port)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(url, "application/json", nil)
+	if err != nil {
+		return fmt.Errorf("HTTP POST request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned status: %s", resp.Status)
+	}
+
+	return nil
+}
+
 
 func run(configPath string) error {
 	cfg, err := config.Load(configPath)
@@ -86,7 +126,9 @@ func run(configPath string) error {
 	}
 
 	authMiddleware := auth.NewMiddleware(cfg.Auth, logger)
+	defer authMiddleware.Close()
 	nonceStore := auth.NewNonceStore(cfg.Auth.NonceTTL)
+	defer nonceStore.Close()
 
 	gw := gateway.New(gateway.Config{
 		Registry:    registry,
