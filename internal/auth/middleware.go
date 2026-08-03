@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/edsilegxrepo/service-gateway/internal/config"
-	"github.com/edsilegxrepo/service-gateway/internal/crypto"
-	"github.com/edsilegxrepo/service-gateway/internal/logging"
+	"criticalsys.net/service-gateway/internal/config"
+	"criticalsys.net/service-gateway/internal/crypto"
+	"criticalsys.net/service-gateway/internal/logging"
 )
 
 type contextKey string

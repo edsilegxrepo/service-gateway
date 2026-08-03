@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/edsilegxrepo/service-gateway/internal/auth"
-	"github.com/edsilegxrepo/service-gateway/internal/logging"
-	"github.com/edsilegxrepo/service-gateway/internal/services"
+	"criticalsys.net/service-gateway/internal/auth"
+	"criticalsys.net/service-gateway/internal/logging"
+	"criticalsys.net/service-gateway/internal/services"
 )
 
 type Gateway struct {

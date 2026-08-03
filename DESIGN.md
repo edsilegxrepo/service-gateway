@@ -4684,142 +4684,55 @@ X-Nonce: <server-nonce>
 package o365mbx
 
 import (
-    "context"
-    "encoding/json"
-    "net/http"
-    "sync"
-    "time"
-    
-    "github.com/edsilegxrepo/o365mbx/pkg/mailbox"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"o365mbx/downloader"
+	"o365mbx/engine"
+
+	"github.com/edsilegxrepo/service-gateway/internal/crypto"
+	"github.com/edsilegxrepo/service-gateway/internal/services"
 )
 
-type Service struct {
-    name   string
-    config Config
-    client *mailbox.Client
-    mu     sync.RWMutex
+type O365MBXService struct {
+	services.BaseService
+	config Config
 }
 
 type Config struct {
-    Mailbox        string               `json:"mailbox"`
-    EncryptedToken string               `json:"encrypted_token"`
-    Defaults       DefaultSettings      `json:"defaults"`
-    Operations     map[string]Operation `json:"operations"`
+	Type        string   `json:"type"`
+	Description string   `json:"description"`
+	Version     string   `json:"version"`
+	Settings    Settings `json:"settings"`
 }
 
-type DefaultSettings struct {
-    TimeoutSeconds      int     `json:"timeout_seconds"`
-    MaxExecutionTimeMsg int     `json:"max_execution_time_msg"`
-    Parallel            int     `json:"parallel"`
-    MaxRetries          int     `json:"max_retries"`
-    APIRate             float64 `json:"api_rate"`
-    APIBurst            int     `json:"api_burst"`
-    ChromiumPath        string  `json:"chromium_path"`
+type Settings struct {
+	TenantID              string               `json:"tenant_id,omitempty"`
+	ClientID              string               `json:"client_id,omitempty"`
+	EncryptedClientID     string               `json:"encrypted_client_id,omitempty"`
+	ClientSecret          string               `json:"client_secret,omitempty"`
+	EncryptedClientSecret string               `json:"encrypted_client_secret,omitempty"`
+	TokenString           string               `json:"token_string,omitempty"`
+	EncryptedToken        string               `json:"encrypted_token,omitempty"`
+	Mailbox               string               `json:"mailbox"`
+	Defaults              DefaultSettings      `json:"defaults"`
+	Operations            map[string]Operation `json:"operations"`
 }
 
-type Operation struct {
-    Description     string              `json:"description"`
-    ProcessingMode  string              `json:"processing_mode"`
-    InboxFolder     string              `json:"inbox_folder"`
-    ProcessedFolder string              `json:"processed_folder"`
-    ErrorFolder     string              `json:"error_folder"`
-    ConvertBody     string              `json:"convert_body"`
-    Params          map[string]ParamDef `json:"params"`
-}
-
-func (s *Service) Initialize(ctx context.Context, masterKey []byte) error {
-    // Decrypt JWT token
-    token, err := libsecsecrets.Decrypt(ctx, s.config.EncryptedToken, masterKey)
-    if err != nil {
-        return fmt.Errorf("failed to decrypt token: %w", err)
-    }
-    
-    // Initialize mailbox client
-    s.client, err = mailbox.NewClient(mailbox.Options{
-        Mailbox:    s.config.Mailbox,
-        Token:      token,
-        Timeout:    time.Duration(s.config.Defaults.TimeoutSeconds) * time.Second,
-        Parallel:   s.config.Defaults.Parallel,
-        MaxRetries: s.config.Defaults.MaxRetries,
-        APIRate:    s.config.Defaults.APIRate,
-        APIBurst:   s.config.Defaults.APIBurst,
-    })
-    
-    return err
-}
-
-// HandleOperation processes named operations: POST /op/{name}
-func (s *Service) HandleOperation(ctx context.Context, w http.ResponseWriter, r *http.Request, opName string) {
-    s.mu.RLock()
-    op, exists := s.config.Operations[opName]
-    s.mu.RUnlock()
-    
-    if !exists {
-        http.Error(w, "operation not found", http.StatusNotFound)
-        return
-    }
-    
-    var req map[string]interface{}
-    json.NewDecoder(r.Body).Decode(&req)
-    
-    // Validate required params
-    for name, def := range op.Params {
-        if def.Required {
-            if _, ok := req[name]; !ok {
-                http.Error(w, fmt.Sprintf("missing required param: %s", name), http.StatusBadRequest)
-                return
-            }
-        }
-    }
-    
-    // Execute based on operation type
-    var result interface{}
-    var err error
-    
-    switch opName {
-    case "healthcheck":
-        result, err = s.client.HealthCheck(ctx)
-    case "list-folder":
-        result, err = s.client.ListFolder(ctx, req["folder"].(string))
-    default:
-        result, err = s.client.Process(ctx, mailbox.ProcessOptions{
-            Mode:            op.ProcessingMode,
-            InboxFolder:     op.InboxFolder,
-            ProcessedFolder: op.ProcessedFolder,
-            ErrorFolder:     op.ErrorFolder,
-            ConvertBody:     op.ConvertBody,
-            Workspace:       req["workspace"].(string),
-            StateFile:       req["state_file"].(string),
-            ChromiumPath:    s.config.Defaults.ChromiumPath,
-        })
-    }
-    
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
-    
-    json.NewEncoder(w).Encode(result)
-}
-
-func (s *Service) Shutdown() {
-    if s.client != nil {
-        s.client.Close()
-    }
+func (s *O365MBXService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Parses operation from URL /op/{name}, validates params, builds engine.Config,
+	// and executes via downloader.New(engineCfg, nil).Execute(ctx, &outBuf)
 }
 ```
 
-### JWT Token Management
+### Authentication & Token Management
 
-The JWT token for Graph API access is encrypted with secretprotector:
-
-```powershell
-# Encrypt the JWT token
-secretprotector -key-file "D:\secrets\gateway.key" -encrypt "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIs..."
-# Output: AES256-GCM:base64...
-```
-
-**Token refresh:** The o365mbx library handles token refresh internally if using app registration with client credentials flow.
+`o365mbx` natively supports both static bearer tokens and **Client Credentials Flow** (`tenant_id`, `client_id`, `client_secret`).
+When using Client Credentials Flow, `o365mbx` performs automatic background token acquisition and auto-refresh via Microsoft Entra ID (`https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token`).
+If credentials stored at rest are encrypted with `secretprotector` or `crypto`, `o365mbx` decrypts them securely using the master key.
 
 ### Security Considerations
 

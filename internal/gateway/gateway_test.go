@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/edsilegxrepo/service-gateway/internal/auth"
-	"github.com/edsilegxrepo/service-gateway/internal/config"
-	"github.com/edsilegxrepo/service-gateway/internal/services"
+	"criticalsys.net/service-gateway/internal/auth"
+	"criticalsys.net/service-gateway/internal/config"
+	"criticalsys.net/service-gateway/internal/services"
 )
 
 func TestHealthEndpoint(t *testing.T) {

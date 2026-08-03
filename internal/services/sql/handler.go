@@ -12,8 +12,8 @@ import (
 
 	"github.com/xo/dburl"
 
-	"github.com/edsilegxrepo/service-gateway/internal/crypto"
-	"github.com/edsilegxrepo/service-gateway/internal/services"
+	"criticalsys.net/service-gateway/internal/crypto"
+	"criticalsys.net/service-gateway/internal/services"
 )
 
 func init() {

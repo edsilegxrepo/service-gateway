@@ -260,6 +260,121 @@ Send a `SIGHUP` signal directly to the running gateway process:
 kill -HUP <pid>
 ```
 
+---
+
+### 5.8 Step 8: `o365mbx` Office 365 Mailbox Service Definition Example
+
+Below is a detailed example of a complete `o365mbx` service configuration file stored in `services/o365mbx-invoices/config.json`. It defines an Office 365 mailbox connector using OAuth2 Client Credentials Flow with encrypted credentials and named REST operations:
+
+#### `services/o365mbx-invoices/config.json`
+
+```json
+{
+  "type": "o365mbx",
+  "description": "Invoice mailbox processing service via Graph API",
+  "version": "1.0",
+  "updated": "2026-07-28T12:00:00Z",
+  "settings": {
+    "mailbox": "invoices@company.com",
+    "tenant_id": "00000000-0000-0000-0000-000000000000",
+    "client_id": "11111111-1111-1111-1111-111111111111",
+    "encrypted_client_secret": "ENC[V2hhdEFCZWF1dGlmdWxTZWNyZXQxMjM0NTY3ODkwMTIzNDU2]",
+    "defaults": {
+      "timeout_seconds": 120,
+      "max_execution_time_msg": 120,
+      "parallel": 10,
+      "max_retries": 2,
+      "api_rate": 5.0,
+      "api_burst": 10,
+      "chromium_path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    },
+    "operations": {
+      "process-all": {
+        "description": "Process all messages in inbox (full mode)",
+        "processing_mode": "full",
+        "inbox_folder": "Inbox",
+        "convert_body": "text",
+        "params": {
+          "workspace": {
+            "type": "string",
+            "required": true,
+            "description": "Canonical absolute workspace path for storing email artifacts"
+          }
+        }
+      },
+      "process-incremental": {
+        "description": "Process new messages since last run (delta sync)",
+        "processing_mode": "incremental",
+        "inbox_folder": "Inbox",
+        "convert_body": "pdf",
+        "params": {
+          "workspace": {
+            "type": "string",
+            "required": true,
+            "description": "Output directory for artifacts"
+          },
+          "state_file": {
+            "type": "string",
+            "required": true,
+            "description": "Absolute path to state JSON file for incremental sync"
+          }
+        }
+      },
+      "route-invoices": {
+        "description": "Route processed invoices to custom folders",
+        "processing_mode": "route",
+        "inbox_folder": "Inbox",
+        "processed_folder": "Processed_Invoices",
+        "error_folder": "Error_Invoices",
+        "convert_body": "pdf",
+        "params": {
+          "workspace": {
+            "type": "string",
+            "required": true
+          }
+        }
+      },
+      "healthcheck": {
+        "description": "Check mailbox connectivity and permissions",
+        "processing_mode": "healthcheck",
+        "params": {}
+      }
+    }
+  }
+}
+```
+
+#### Executing an `o365mbx` Service Operation via cURL
+
+Request a nonce, then execute the `process-all` operation against the `o365mbx-invoices` service connector:
+
+```bash
+# 1. Acquire single-use anti-replay nonce
+NONCE=$(curl -s -H "Authorization: Bearer WhatABeautifulSecret1234567890123456" \
+  http://127.0.0.1:3000/api/v1/auth/nonce | jq -r '.nonce')
+
+# 2. Execute process-all operation
+curl -s -X POST \
+  -H "Authorization: Bearer WhatABeautifulSecret1234567890123456" \
+  -H "X-Nonce: ${NONCE}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace": "C:\\data\\processing\\invoices_2026_07_28"
+  }' \
+  http://127.0.0.1:3000/api/v1/o365mbx-invoices/op/process-all
+```
+
+**Output Sample (JSON Response):**
+```json
+{
+  "status": "success",
+  "operation": "process-all",
+  "mailbox": "invoices@company.com",
+  "processed": 42,
+  "failed": 0,
+  "execution_time_seconds": 12.4
+}
+```
 
 ---
 

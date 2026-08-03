@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/edsilegxrepo/service-gateway/internal/config"
+	"criticalsys.net/service-gateway/internal/config"
 )
 
 type contextKey string

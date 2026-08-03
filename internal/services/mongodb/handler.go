@@ -12,8 +12,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/edsilegxrepo/service-gateway/internal/crypto"
-	"github.com/edsilegxrepo/service-gateway/internal/services"
+	"criticalsys.net/service-gateway/internal/crypto"
+	"criticalsys.net/service-gateway/internal/services"
 )
 
 func init() {

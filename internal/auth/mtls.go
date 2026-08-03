@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/edsilegxrepo/service-gateway/internal/config"
+	"criticalsys.net/service-gateway/internal/config"
 )
 
 type clientCertKey struct{}

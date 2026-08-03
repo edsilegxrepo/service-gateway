@@ -11,7 +11,7 @@ import (
 
 	"criticalsys.net/pdf-extractor/pkg/extractor"
 
-	"github.com/edsilegxrepo/service-gateway/internal/services"
+	"criticalsys.net/service-gateway/internal/services"
 )
 
 func init() {

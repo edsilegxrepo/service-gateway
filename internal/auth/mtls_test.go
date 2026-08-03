@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/edsilegxrepo/service-gateway/internal/config"
+	"criticalsys.net/service-gateway/internal/config"
 )
 
 func TestMTLSDisabled(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/edsilegxrepo/service-gateway/internal/config"
+	"criticalsys.net/service-gateway/internal/config"
 )
 
 func TestIPAllowed(t *testing.T) {

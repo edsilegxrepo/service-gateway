@@ -11,8 +11,8 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 
-	"github.com/edsilegxrepo/service-gateway/internal/crypto"
-	"github.com/edsilegxrepo/service-gateway/internal/services"
+	"criticalsys.net/service-gateway/internal/crypto"
+	"criticalsys.net/service-gateway/internal/services"
 )
 
 func init() {

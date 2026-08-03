@@ -13,8 +13,8 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 
-	"github.com/edsilegxrepo/service-gateway/internal/crypto"
-	"github.com/edsilegxrepo/service-gateway/internal/services"
+	"criticalsys.net/service-gateway/internal/crypto"
+	"criticalsys.net/service-gateway/internal/services"
 )
 
 func init() {

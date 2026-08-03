@@ -176,7 +176,7 @@ go tool cover -func=coverage.out
 ### 6.1 Integration Testing via Mock Listeners
 To achieve 100% functionality coverage across external network protocols without requiring live third-party cloud instances during unit testing, the test suite incorporates realistic mock listeners:
 
-1. **HTTP Listener Simulation ([httptest.Server](file:///e:/data/devel/build/code/private/service-gateway/internal/gateway/gateway_test.go))**: Spins up ephemeral local HTTP/S sockets to test full request-response middleware chains, header propagation, and chunked NDJSON streaming.
+1. **HTTP Listener Simulation ([httptest.Server](internal/gateway/gateway_test.go))**: Spins up ephemeral local HTTP/S sockets to test full request-response middleware chains, header propagation, and chunked NDJSON streaming.
 2. **Subprocess Pipe Simulation ([handler_test.go](internal/services/wrapper/handler_test.go))**: Executes real system process calls (`echo`, `go version`) with simulated `stdin`/`stdout`/`stderr` pipes to verify CLI wrapper execution logic.
 3. **Mock Service Factory Registration ([types_test.go](internal/services/types_test.go))**: Registers mock service implementations using [RegisterType](internal/services/types.go#L16) to test lifecycle methods (`Name()`, `Type()`, `ServeHTTP()`, `HealthCheck()`, `Close()`).
 

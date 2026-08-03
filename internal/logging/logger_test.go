@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/edsilegxrepo/service-gateway/internal/config"
+	"criticalsys.net/service-gateway/internal/config"
 )
 
 func TestNewLoggerJSON(t *testing.T) {
