@@ -7,7 +7,7 @@ require (
 	criticalsys.net/pdf-extractor v0.2.0
 	github.com/ThreeDotsLabs/watermill v1.5.2
 	github.com/go-ldap/ldap/v3 v3.4.14
-	github.com/jarcoal/httpmock v1.4.1
+	github.com/jarcoal/httpmock v1.4.2
 	github.com/rclone/rclone v1.74.4
 	github.com/stretchr/testify v1.11.1
 	github.com/xo/dburl v0.24.2
