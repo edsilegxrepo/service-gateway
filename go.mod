@@ -9,7 +9,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.14
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/rclone/rclone v1.74.4
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	github.com/xo/dburl v0.24.2
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/sys v0.47.0
