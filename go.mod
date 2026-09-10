@@ -1,6 +1,6 @@
 module criticalsys.net/service-gateway
 
-go 1.26
+go 1.26.0
 
 require (
 	criticalsys.net/o365mbx v1.1.0
@@ -12,7 +12,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/xo/dburl v0.24.2
 	go.mongodb.org/mongo-driver v1.17.9
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.48.0
 )
 
 replace criticalsys.net/pdf-extractor => ../pdf-extractor
