@@ -5,7 +5,7 @@ go 1.26
 require (
 	criticalsys.net/o365mbx v1.1.0
 	criticalsys.net/pdf-extractor v0.2.0
-	github.com/ThreeDotsLabs/watermill v1.5.2
+	github.com/ThreeDotsLabs/watermill v1.5.3
 	github.com/go-ldap/ldap/v3 v3.4.14
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/rclone/rclone v1.74.4
